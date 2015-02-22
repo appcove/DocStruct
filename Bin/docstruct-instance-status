@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys; sys.path.insert(1, os.path.abspath(sys.path[0] + "/../Python"))
+
+import json
+from base64 import b64encode
+
+try:
+  from DocStruct import Setup
+  from DocStruct.Config import EnvironmentConfig
+  from DocStruct.Base import GetSession, EC2
+except ImportError:
+  print()
+  print("Seems like your environment is not setup up correctly.")
+  print("Please make sure DocStruct.Setup is importable before running this script.")
+  print()
+  sys.exit(0)
+
+import argparse
+parser = argparse.ArgumentParser(description="Get the status of instances running within a DocStruct environment.")
+# Parse the credentials file path
+parser.add_argument(
+  "credsfilepath", type=lambda s: os.path.abspath(s),
+  help="Path to the CSV file to use for credentials to access AWS"
+  )
+# Parse the environment name
+parser.add_argument(
+  "environment_id", type=str,
+  help="ID of the environment within which we are going to show status of running instances"
+  )
+# Parse the AMI ID
+parser.add_argument(
+  "instance_id", type=str, nargs="?",
+  help="ID of the instance we want to list status for"
+  )
+
+# Parse arguments
+args = parser.parse_args()
+
+# Assert that the credentials file actually exists
+try:
+  assert os.path.exists(args.credsfilepath)
+except AssertionError:
+  print("Could not find credential file at {0}. Please make sure the file actually exists before continuing...".format(args.credsfilepath))
+  sys.exit(1)
+
+# Assert that an environment with the provided name actually exists
+try:
+  # Make sure the global environment exists
+  envconf = EnvironmentConfig(CredsFilePath=args.credsfilepath, EnvironmentID=args.environment_id)
+  assert envconf.User_Arn
+except AssertionError:
+  print("Could not find environment named {0}. Please make sure the environment exists before calling this script.".format(args.environment_id))
+  sys.exit(1)
+
+# Supply this config to the LaunchInstance call
+instances = EC2.ListInstances(session=envconf.Session, environmentid=args.environment_id)
+
+groups = {}
+
+# Loop over the instances and group them using the EnvironmentID
+for instance in instances:
+  if 'Instances' in instance and len(instance['Instances']):
+    # Extract the actual instance information
+    i = instance['Instances'][0]
+    if len(i.get('Tags', [])) == 0:
+      if 'Untagged' not in groups:
+        groups['Untagged'] = []
+      # Untagged instances go into the untagged section
+      groups['Untagged'].append(i)
+      continue
+    # Loop over tags
+    for tag in i['Tags']:
+      if tag['Key'] == 'EnvironmentID':
+        if tag['Value'] not in groups:
+          groups[tag['Value']] = []
+        groups[tag['Value']].append(i)
+        break
+
+for environmentid, instances in groups.items():
+  print()
+  print("Instances belonging to {0}".format(environmentid))
+  for i in instances:
+    # NOTE: we may be able to convert times with:
+    # datetime.strptime(re.sub(r'\.\d{1,5}Z$', '', s), '%Y-%m-%dT%H:%M:%S')
+    print("{0}: {1} (launched {2})".format(i['InstanceId'], i['State']['Name'], i['LaunchTime']))
+  print()

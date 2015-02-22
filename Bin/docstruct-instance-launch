@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys; sys.path.insert(1, os.path.abspath(sys.path[0] + "/../Python"))
+
+import json
+from base64 import b64encode
+
+try:
+  from DocStruct import Setup
+  from DocStruct.Config import EnvironmentConfig
+except ImportError:
+  print()
+  print("Seems like your environment is not setup up correctly.")
+  print("Please make sure DocStruct.Setup is importable before running this script.")
+  print()
+  sys.exit(0)
+
+import argparse
+parser = argparse.ArgumentParser(description="Launch an instance of the DocStruct jobs processor.")
+# Parse the credentials file name
+parser.add_argument(
+  "credsfilepath", type=lambda s: os.path.abspath(s),
+  help="Path to the CSV file to use for credentials to access AWS"
+  )
+# Parse the environment name
+parser.add_argument(
+  "environment_id", type=str,
+  help="ID of the environment within which we are going to launch the instance"
+  )
+# Parse the AMI ID
+parser.add_argument(
+  "ami", type=str,
+  help="ID of the AMI we want to launch an instance of"
+  )
+# Parse the number of instances to launch
+parser.add_argument(
+  "--num-instances", metavar="num_instances", type=int, nargs="?", default=1,
+  help="Number of instances to launch"
+  )
+
+# Parse arguments
+args = parser.parse_args()
+
+# Assert that the credentials file actually exists
+try:
+  assert os.path.exists(args.credsfilepath)
+except AssertionError:
+  print("Could not find credential file at %s. Please make sure the file actually exists before continuing..." % args.credsfilepath)
+  sys.exit(1)
+
+# Assert that an environment with the provided name actually exists
+try:
+  # Make sure the global environment exists
+  envconf = EnvironmentConfig(CredsFilePath=args.credsfilepath, EnvironmentID=args.environment_id)
+  assert envconf.User_Arn
+except AssertionError:
+  print("Could not find environment named {0}. Please make sure the environment exists before calling this script.".format(args.environment_id))
+  sys.exit(1)
+
+# Supply this config to the LaunchInstance call
+instances = Setup.LaunchInstances(
+  AMI=args.ami,
+  EnvironmentConfig=envconf,
+  NumInstances=args.num_instances,
+  )
+
+# Print out new instance information
+for instance in instances:
+  print("Launched instance: {0}".format(instance['InstanceId']))

@@ -1,0 +1,93 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys; sys.path.insert(1, os.path.abspath(sys.path[0] + "/../Python"))
+
+try:
+  from DocStruct import Setup
+  from DocStruct.Config import EnvironmentConfig, ApplicationConfig
+except ImportError:
+  print()
+  print("Seems like your environment is not setup up correctly.")
+  print("Please make sure DocStruct.Setup is importable before running this script.")
+  print("HINT: run `setup-aws-env.py`")
+  print()
+  sys.exit(0)
+
+def GetPyConfiguration(c):
+  return '''
+
+#######################################################################
+# COPY CODE BELOW AND PASTE INTO ~/.ConfStruct.py
+#######################################################################
+
+AWS.User.ARN = "''' + c.User_Arn + '''"
+AWS.User.Username = "''' + c.User_Username + '''"
+AWS.User.AccessKeyId = "''' + c.User_AccessKey + '''"
+AWS.User.SecretKey = "''' + c.User_SecretKey  + '''"
+
+AWS.SQS.QueueUrl = "''' + c.EnvironmentConfig.SQS_QueueUrl + '''"
+
+AWS.InputBucket = "''' + c.EnvironmentConfig.S3_InputBucket + '''"
+AWS.OutputBucket = "''' + c.EnvironmentConfig.S3_OutputBucket + '''"
+AWS.KeyPrefix = "''' + c.ApplicationID + '''"
+
+  '''
+
+import argparse
+parser = argparse.ArgumentParser(description="Sets up a DocStruct environment.")
+# Parse the credentials file name
+parser.add_argument(
+  "credsfilepath", type=lambda s: os.path.abspath(s),
+  help="Path to the CSV file to use for credentials to access AWS"
+  )
+# Parse the environment name
+parser.add_argument(
+  "environment_id", type=str,
+  help="Name of the environment within which we are going to setup an application"
+  )
+# Parse the application name
+parser.add_argument(
+  "application_id", type=str,
+  help="Name of the application to setup with the environment"
+  )
+# Parse the "force" boolean
+parser.add_argument(
+  "--force", action="store_true",
+  help="Tells the script to force update the application if it already exists."
+  )
+# Parse arguments
+args = parser.parse_args()
+
+# Assert that the credentials file actually exists
+try:
+  assert os.path.exists(args.credsfilepath)
+except AssertionError:
+  print("Could not find credential file at {0}. Please make sure the file actually exists before continuing...".format(args.credsfilepath))
+  sys.exit(1)
+
+# Check if application and environment already exist
+appconf = ApplicationConfig(
+  CredsFilePath=args.credsfilepath,
+  EnvironmentID=args.environment_id,
+  ApplicationID=args.application_id
+  )
+try:
+  assert appconf.EnvironmentConfig.S3_InputBucket
+except AssertionError:
+  print("Could not find environment named %s. Please make sure the environment exists before calling this script." % args.environment_id)
+  sys.exit(1)
+
+appuser = appconf.User_Arn
+if not appuser or not args.force:
+  appconf = Setup.SetupApplication(
+    CredsFilePath=args.credsfilepath,
+    EnvironmentID=args.environment_id,
+    ApplicationID=args.application_id,
+    GlobalConfig=appconf.EnvironmentConfig
+    )
+
+print()
+print(GetPyConfiguration(appconf))
+print()

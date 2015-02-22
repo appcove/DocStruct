@@ -1,0 +1,77 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys; sys.path.insert(1, os.path.abspath(sys.path[0] + "/../Python"))
+import argparse
+import subprocess
+
+parser = argparse.ArgumentParser(description="Sets up a DocStruct environment.")
+# Parse the credentials file name
+parser.add_argument(
+  "--num-processes", dest="num_processes", type=int, nargs="?", default=4,
+  help="Number of processes to setup."
+  )
+parser.add_argument(
+  "--no-restart", dest="norestart", action='store_true',
+  help="By default the docstruct instances will be restarted after configuration setup. Set this flag to disable restart."
+  )
+# Parse arguments
+args = parser.parse_args()
+
+# Make sure upstart is available on host
+subprocess.check_call(("initctl", "list"))
+
+# Setup the configuration template
+TEMPLATE = """
+# AppCove Jobs processing server
+description "AppCove Job Processor"
+author "Rajiv Navada <rajiv@appcove.com>"
+
+start on {0}
+stop on {1}
+
+respawn
+
+console output
+
+exec su - deploy -c 'exec /opt/acn-linux/bin/docstruct-jobsprocessor-run --logfile /home/deploy/Log/docstruct/docstruct{2}.log'
+""".strip()
+
+# Write the master config
+with open("/etc/init/docstruct.conf", "w") as fp:
+  fp.write(TEMPLATE.format("runlevel [2345]", "runlevel [016]", ""))
+  fp.write("\n")
+# Print out the filename
+print("Wrote /etc/init/docstruct.conf")
+
+for i in range(1, args.num_processes):
+  fname = "/etc/init/docstruct{0}.conf".format(i)
+  # Write the component configs
+  with open(fname, "w") as fp:
+    fp.write(TEMPLATE.format("starting docstruct", "stopping docstruct", str(i)))
+    fp.write("\n")
+  # Output filename
+  print("Wrote {0}".format(fname))
+
+# Make sure the log directory exists
+if not os.path.exists("/home/deploy/Log/docstruct"):
+  os.mkdir("/home/deploy/Log/docstruct")
+  print("Created log directory /home/deploy/Log/docstruct")
+
+if args.norestart:
+  print()
+  print("Configuration files for the jobs processors have been setup.")
+  print("Run `initctl stop docstruct; initctl start docstruct` to start jobs processor")
+  print()
+else:
+  print()
+  # NOTE: we do not call restart since restart does not reload the conf files
+  try:
+    print("Stopping docstruct processes")
+    subprocess.check_call(("initctl", "stop", "docstruct"))
+  except subprocess.CalledProcessError:
+    pass
+  print("Starting docstruct processes")
+  subprocess.check_call(("initctl", "start", "docstruct"))
+  print()

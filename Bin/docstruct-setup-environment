@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys; sys.path.insert(1, os.path.abspath(sys.path[0] + "/../Python"))
+
+try:
+  from DocStruct import Setup
+  from DocStruct.Config import EnvironmentConfig, ApplicationConfig
+except ImportError:
+  print()
+  print("Seems like your environment is not setup up correctly.")
+  print("Please make sure DocStruct.Setup is importable before running this script.")
+  print()
+  sys.exit(1)
+
+import argparse
+parser = argparse.ArgumentParser(description="Sets up a DocStruct environment.")
+# Parse the credentials file name
+parser.add_argument(
+  "credsfilepath", type=lambda s: os.path.abspath(s),
+  help="Path to the CSV file to use for credentials to access AWS"
+  )
+# Parse the environment name
+parser.add_argument(
+  "environment_id", type=str,
+  help="Name of the environment within which we are going to launch the instance"
+  )
+# Parse the "force" boolean
+parser.add_argument(
+  "--force", action="store_true",
+  help="Tells the script to force update the environment if it already exists."
+  )
+# Parse arguments
+args = parser.parse_args()
+
+# Assert that the credentials file actually exists
+try:
+  assert os.path.exists(args.credsfilepath)
+except AssertionError:
+  print("Could not find credential file at {0}. Please make sure the file actually exists before continuing...".format(args.credsfilepath))
+  sys.exit(1)
+
+# Check if an environment with the given name already exists
+envconf = EnvironmentConfig(CredsFilePath=args.credsfilepath, EnvironmentID=args.environment_id)
+inputbucket = envconf.S3_InputBucket
+if not inputbucket or not args.force:
+  envconf = Setup.SetupEnvironment(CredsFilePath=args.credsfilepath, EnvironmentID=args.environment_id)
+
+if envconf:
+  print("Environment with name {0} has been setup.".format(args.environment_id))
+  print()
+  print("*** NOTE ***")
+  print("You will need to add a permission to the SQS queue to allow SNS topics to send messages to them")
+  print("SQS Queue URL: {0}".format(envconf.SQS_QueueUrl))
+  print("SNS Topic Arn: {0}".format(envconf.ElasticTranscoder_TopicArn))
+  print()
+else:
+  raise Exception("Could not setup environment with name {0}".format(args.environment_id))

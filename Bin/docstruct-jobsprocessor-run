@@ -1,0 +1,137 @@
+#!/usr/bin/python3
+# vim:encoding=utf-8:ts=2:sw=2:expandtab
+
+# Setup the path
+import os, os.path, sys
+import re
+import json
+import argparse
+import base64
+import urllib
+import subprocess
+import logging
+import logging.handlers
+
+from botocore.vendored import requests
+
+try:
+  from DocStruct.Jobs import Run
+  from DocStruct.Base import GetSession
+  from DocStruct.Config import EnvironmentConfig, ReadOnlyConfig
+except ImportError:
+  print()
+  print("Seems like your environment is not setup up correctly.")
+  print("Please make sure DocStruct.Jobs is importable before running this script.")
+  print()
+  sys.exit(1)
+
+parser = argparse.ArgumentParser(description="Starts an instance of the DocStruct jobs processing server")
+# Parse the config file path if provided
+parser.add_argument(
+  "--config", dest="configfilepath", type=lambda s: os.path.abspath(s) if s and not s.startswith('http') else s, nargs='?', default="",
+  help="Path to the config file. In an EC2 instance, this option is not required since config is provided in instance data. It is required in all other cases."
+  )
+parser.add_argument(
+  "--logfile", dest="logfilepath", type=lambda s: os.path.abspath(s) if s else "", nargs="?", default="",
+  help="Path to the file where output from process should be logged."
+  )
+parser.add_argument(
+  "--datadirpath", dest="datadirpath", type=lambda s: os.path.abspath(s) if s else "/tmp", nargs="?", default="",
+  help="Path where intermediate files must be saved before processing."
+  )
+# Parse arguments
+args = parser.parse_args()
+
+# Construct a logger for this process
+LOGLEVEL = logging.DEBUG
+# Setup the logger now
+LOGGER = logging.getLogger('DocStruct')
+LOGGER.setLevel(LOGLEVEL)
+
+# We need to construct a handler
+if args.logfilepath:
+  lh = logging.handlers.TimedRotatingFileHandler(args.logfilepath, when='D', interval=1)
+  lh.setLevel(LOGLEVEL)
+else:
+  # Create a logger that logs to stderr (default for StreamHandler)
+  lh = logging.StreamHandler()
+  lh.setLevel(LOGLEVEL)
+# Setup log formatter
+f = logging.Formatter('%(asctime)s, %(levelname)s, %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+lh.setFormatter(f)
+LOGGER.addHandler(lh)
+
+# Get config
+if args.configfilepath:
+  if args.configfilepath.startswith('http'):
+    output = requests.get(args.configfilepath)
+    data = json.loads(output.content)
+  else:
+    try:
+      assert os.path.exists(args.configfilepath)
+    except AssertionError:
+      LOGGER.exception("Could not find config file at {0}. Exiting...".format(args.configfilepath))
+      sys.exit(1)
+    else:
+      with open(args.configfilepath, 'r') as fp:
+        data = json.loads(fp.read())
+  # Create a read only config
+  Config = ReadOnlyConfig(Data=data)
+else:
+  data = json.loads(base64.b64decode(urllib.request.urlopen("http://169.254.169.254/latest/user-data").read()).decode('utf-8'))
+  session = GetSession(AccessKey=data['AccessKey'], SecretKey=data['SecretKey'])
+  Config = EnvironmentConfig(CredsFilePath=session, EnvironmentID=data['EnvironmentID'])
+
+# Check to see if all dependencies are available
+retcode = subprocess.call('which python2', stderr=subprocess.STDOUT, shell=True)
+if retcode:
+  print()
+  print("Seems like python2 is not available.")
+  print("Please install python2 (>= 2.6) before starting the jobs processor.")
+  print()
+  sys.exit(1)
+
+converter_path = os.path.join(os.path.dirname(__file__), '../python3.3/DocStruct/DocumentConverter.py')
+if not os.path.exists(converter_path):
+  print()
+  print("Seems like DocumentConverter.py which comes bundled with acn-linux is missing.")
+  print("Please upgrade to the latest version of acn-linux before starting the jobs processor.")
+  print()
+  sys.exit(1)
+
+try:
+  subprocess.check_output(('python2', converter_path, '/tmp/invalid.doc', '/tmp/invalid.pdf'), stderr=subprocess.STDOUT)
+except subprocess.CalledProcessError as exc:
+  if re.search(r'failed to connect', exc.output.decode('utf-8')):
+    print()
+    print("Seems like we couldn't establish a connection to the headless openoffice server.")
+    print("Please start the headless openoffice server before starting the jobs processor.")
+    print()
+    sys.exit(1)
+
+retcode = subprocess.call('which gs', stderr=subprocess.STDOUT, shell=True)
+if retcode:
+  print()
+  print("Seems like ghostscript is not installed.")
+  print("Please install ghostscript before starting the jobs processor.")
+  print()
+  sys.exit(1)
+
+retcode = subprocess.call('which identify', stderr=subprocess.STDOUT, shell=True)
+if retcode:
+  print()
+  print("Seems like the program identify is not installed.")
+  print("Please install ImageMagick before starting the jobs processor.")
+  print()
+  sys.exit(1)
+
+retcode = subprocess.call('which convert', stderr=subprocess.STDOUT, shell=True)
+if retcode:
+  print()
+  print("Seems like the program identify is not installed.")
+  print("Please install ImageMagick before starting the jobs processor.")
+  print()
+  sys.exit(1)
+
+# Setup and run the processor
+Run(DataDirPath=args.datadirpath, Config=Config, Logger=LOGGER)
