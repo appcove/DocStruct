@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from AppStruct.Security import RandomHex
 
-from ... import Base
+from ..Base import GetSession, S3, SQS
 from . import AWS
 
 
@@ -37,7 +37,7 @@ class AWSConfig(object):
 
 class Client(object):
 
-  SchemaVersion = 100
+  SchemaVersion = '1.0.0'
 
   def __init__(self, *, Config, GetDB, Schema):
     self.GetDB = GetDB
@@ -55,7 +55,7 @@ class Client(object):
       FROM
         "AWS"."Release"
       '''
-      ))
+      )
     if SchemaVersion != self.SchemaVersion:
       raise TypeError("DocStruct schema version does not match DocStruct code version. Please make sure database is upgraded before running App.")
 
@@ -64,20 +64,20 @@ class Client(object):
     try:
       session = self._session
     except AttributeError:
-      session = self._session = Base.GetSession(
+      session = self._session = GetSession(
         AccessKey=self.Config.AccessKey,
         SecretKey=self.Config.SecretKey
         )
     return session
 
   def GetBucketAndKeyFromArn(self, Arn):
-    return Base.S3.GetBucketAndKeyFromArn(Arn)
+    return S3.GetBucketAndKeyFromArn(Arn)
 
   def GetInputBucketUrl(self):
-    return Base.S3.GetBucketUrl(self.Config.InputBucket)
+    return S3.GetBucketUrl(self.Config.InputBucket)
 
   def GetOutputBucketUrl(self):
-    return Base.S3.GetBucketUrl(self.Config.OutputBucket)
+    return S3.GetBucketUrl(self.Config.OutputBucket)
 
   ###############################################################################
   def S3_PrepareUpload(self, *, FileInfo, RemoteAddr, CreateUser, OwnerHint="nobody", expiresin=3600):
@@ -89,7 +89,7 @@ class Client(object):
     expiresat = datetime.utcnow() + timedelta(seconds=expiresin)
     key = "{0}/{1}".format(self.Config.KeyPrefix, esid)
     # Get the policy dict
-    d = Base.S3.GetFormParameters(
+    d = S3.GetFormParameters(
       self.Session,
       self.Config.InputBucket,
       key,
@@ -139,7 +139,7 @@ class Client(object):
 
     jobspec = jobparams.ToJSON()
     # Post message to SQS
-    message = Base.SQS.PostMessage(self.Session, self.Config.QueueUrl, jobspec)
+    message = SQS.PostMessage(self.Session, self.Config.QueueUrl, jobspec)
 
     # Now we can mark the file as finished uploading.
     # NOTE: we pass in an empty string for the JobArn so that the pending queries still work
@@ -179,7 +179,7 @@ class Client(object):
     key = s3file.Input_Arn.split(':')[-1].replace("{0}/".format(self.Config.OutputBucket), "").replace('input.dat', 'output.json')
 
     # check if the output file is available yet
-    jdict = Base.S3.GetJSON(
+    jdict = S3.GetJSON(
       session=self.Session,
       bucket=self.Config.OutputBucket,
       key=key
@@ -232,7 +232,7 @@ class Client(object):
       bucket, key = self.Config.GetBucketAndKeyFromArn(version["Arn"])
 
       OutputMap[version.VideoVersion] = aadict(
-        src = Base.S3.GetSignedUrl(self.Session, bucket, key, expiresin),
+        src = S3.GetSignedUrl(self.Session, bucket, key, expiresin),
         type = version.HTML_Type,
         )
 
@@ -369,7 +369,7 @@ class Client(object):
 
     # Upload the file to S3
     with open(FS[FileInfo.Hash].Path, "rb") as fp:
-      Base.S3.PutObject(session=self.session, bucket=self.Config.InputBucket, key=key, content=fp, type_=FileInfo.ContentType)
+      S3.PutObject(session=self.session, bucket=self.Config.InputBucket, key=key, content=fp, type_=FileInfo.ContentType)
 
     # Since file has uploaded we can mark it as ended.
     # NOTE: this also posts the SQS message to transcode file

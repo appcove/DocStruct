@@ -13,7 +13,7 @@ from AppStruct.Security import RandomHex
 
 from Project.Base import MakeSIUD
 
-from .JobSpecification import TranscodeVideoJob, ConvertToPDFJob, ResizeImageJob, NormalizeImageJob
+from ..JobSpecification import TranscodeVideoJob, ConvertToPDFJob, ResizeImageJob, NormalizeImageJob
 
 
 ###############################################################################
