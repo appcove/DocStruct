@@ -194,7 +194,7 @@ class Client(object):
 
     # On complete we will create and save the output versions
     if state == "COMPLETED":
-      s3file.AddVersions(AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
+      s3file.AddVersions(DB=self.GetDB(), AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
 
     elif state == 'ERROR':
       s3file.Input_Error = json.dumps(jdict)
@@ -241,7 +241,7 @@ class Client(object):
     return OutputMap or None
 
   ###############################################################################
-  def S3_File_Poll():
+  def S3_File_Poll(self):
     numfiles = 0
     numerrors = 0
     numtranscoded = 0
@@ -263,7 +263,7 @@ class Client(object):
     return numfiles, numerrors, numtranscoded
 
   ###############################################################################
-  def Get_Transcoded_S3_File_From_ACRM_File(File_MNID):
+  def Get_Transcoded_S3_File_From_ACRM_File(self, File_MNID):
     '''
     This function either returns an S3_File object or None
 
@@ -382,7 +382,7 @@ class Client(object):
     return s3file
 
   ###############################################################################
-  def S3_File_RetriggerJob(S3_File_MNID):
+  def S3_File_RetriggerJob(self, S3_File_MNID):
     DB = self.GetDB()
     # Try to get the file info
     try:

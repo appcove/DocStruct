@@ -196,22 +196,25 @@ class S3_File(metaclass=MetaRecord):
     return self.Save()
 
   #============================================================================
-  def AddVersions(self, *, AWSResponse, OutputBucket):
+  def AddVersions(self, *, DB, AWSResponse, OutputBucket):
     # Handle creating of versions in a transaction
     if self.Input_Type == 'Video':
       S3_File_Video.AddVersions(
+        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
         )
     elif self.Input_Type.endswith('Image'):
       S3_File_Image.AddVersions(
+        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
         )
     elif self.Input_Type == 'Document':
       S3_File_Document.AddVersions(
+        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
