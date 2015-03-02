@@ -9,7 +9,6 @@ from ..Base import GetSession, S3
 from . import Job, S3BackedFile
 
 
-BIN_CONVERT = "/usr/bin/convert"
 Output = collections.namedtuple('Output', ('Width', 'Height', 'OutputKey'))
 
 
@@ -70,13 +69,13 @@ class S3BackedImage(S3BackedFile):
       o = Output(*o_)
       if not o.Width or not o.Height:
         cmd = (
-          BIN_CONVERT,
+          self.Binaries.Convert,
           FilePath,
           self.GetLocalFilePathFromS3Key(KeyPrefix=self.OutputKeyPrefix, Key=o.OutputKey),
           )
       else:
         cmd = (
-          BIN_CONVERT,
+          self.Binaries.Convert,
           FilePath,
           '-resize', '{0}x{1}'.format(str(o.Width), str(o.Height)),
           self.GetLocalFilePathFromS3Key(KeyPrefix=self.OutputKeyPrefix, Key=o.OutputKey),
@@ -93,7 +92,7 @@ class S3BackedImage(S3BackedFile):
     for o_ in self.PreferredOutputs:
       o = Output(*o_)
       cmd = (
-        BIN_CONVERT,
+        self.Binaries.Convert,
         FilePath,
         '-resize', '{0}x{1}^'.format(str(o.Width), str(o.Height)),
         '-gravity', 'Center',

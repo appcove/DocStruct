@@ -15,8 +15,8 @@ import logging.handlers
 from botocore.vendored import requests
 
 try:
-  from DocStruct.Jobs import Run
   from DocStruct.Base import GetSession
+  from DocStruct.Jobs import Run, Binaries
   from DocStruct.Config import EnvironmentConfig, ReadOnlyConfig
 except ImportError:
   print()
@@ -82,56 +82,13 @@ else:
   session = GetSession(AccessKey=data['AccessKey'], SecretKey=data['SecretKey'])
   Config = EnvironmentConfig(CredsFilePath=session, EnvironmentID=data['EnvironmentID'])
 
-# Check to see if all dependencies are available
-retcode = subprocess.call('which python2', stderr=subprocess.STDOUT, shell=True)
-if retcode:
-  print()
-  print("Seems like python2 is not available.")
-  print("Please install python2 (>= 2.6) before starting the jobs processor.")
-  print()
-  sys.exit(1)
 
-converter_path = os.path.join(os.path.dirname(__file__), '../python3.3/DocStruct/DocumentConverter.py')
-if not os.path.exists(converter_path):
-  print()
-  print("Seems like DocumentConverter.py which comes bundled with acn-linux is missing.")
-  print("Please upgrade to the latest version of acn-linux before starting the jobs processor.")
-  print()
-  sys.exit(1)
-
-try:
-  subprocess.check_output(('python2', converter_path, '/tmp/invalid.doc', '/tmp/invalid.pdf'), stderr=subprocess.STDOUT)
-except subprocess.CalledProcessError as exc:
-  if re.search(r'failed to connect', exc.output.decode('utf-8')):
-    print()
-    print("Seems like we couldn't establish a connection to the headless openoffice server.")
-    print("Please start the headless openoffice server before starting the jobs processor.")
-    print()
-    sys.exit(1)
-
-retcode = subprocess.call('which gs', stderr=subprocess.STDOUT, shell=True)
-if retcode:
-  print()
-  print("Seems like ghostscript is not installed.")
-  print("Please install ghostscript before starting the jobs processor.")
-  print()
-  sys.exit(1)
-
-retcode = subprocess.call('which identify', stderr=subprocess.STDOUT, shell=True)
-if retcode:
-  print()
-  print("Seems like the program identify is not installed.")
-  print("Please install ImageMagick before starting the jobs processor.")
-  print()
-  sys.exit(1)
-
-retcode = subprocess.call('which convert', stderr=subprocess.STDOUT, shell=True)
-if retcode:
-  print()
-  print("Seems like the program identify is not installed.")
-  print("Please install ImageMagick before starting the jobs processor.")
-  print()
-  sys.exit(1)
-
+assert Binaries.Python2 != ""
+assert Binaries.DocumentConverter != ""
+assert Binaries.Ghostscript != ""
+assert Binaries.Identify != ""
+assert Binaries.Convert != ""
+  
 # Setup and run the processor
 Run(DataDirPath=args.datadirpath, Config=Config, Logger=LOGGER)
+

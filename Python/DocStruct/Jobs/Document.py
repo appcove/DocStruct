@@ -10,11 +10,6 @@ from ..Base import S3
 from . import Job, S3BackedFile
 
 
-BIN_CONVERT = "/usr/bin/convert"
-GS_BIN = "/usr/bin/gs"
-CONVERTER_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../DocumentConverter.py'))
-
-
 class S3BackedDocument(S3BackedFile):
 
   def __init__(self, *, OutputKey, **kw):
@@ -28,7 +23,7 @@ class S3BackedDocument(S3BackedFile):
 
     # Call ghostscript to produce the images
     try:
-      out = subprocess.check_output((GS_BIN, '-sDEVICE=png256', '-dNOPAUSE', '-r300', '-o', PageNameFormat, PDFPath), stderr=subprocess.STDOUT)
+      out = subprocess.check_output((self.Binaries.Ghostscript, '-sDEVICE=png256', '-dNOPAUSE', '-r300', '-o', PageNameFormat, PDFPath), stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exc:
       raise Exception("ERROR: {0}".format(exc.output))
 
@@ -54,7 +49,7 @@ class S3BackedDocument(S3BackedFile):
         # Create regular version
         try:
           cmd = (
-            BIN_CONVERT,
+            self.Binaries.Convert,
             im,
             '-resize', fsize,
             fname,
@@ -101,7 +96,7 @@ class S3BackedDocument(S3BackedFile):
 
     # Use pyuno to speak to the headless openoffice server
     try:
-      out = subprocess.check_output(('python2', CONVERTER_PATH, FilePath, OutputFilePath), stderr=subprocess.STDOUT)
+      out = subprocess.check_output((self.Binaries.Python2, self.Binaries.DocumentConverter, FilePath, OutputFilePath), stderr=subprocess.STDOUT)
       self.Logger.debug("Done with conversion")
     except subprocess.CalledProcessError as exc:
       raise Exception("ERROR: {0}".format(exc.output))
