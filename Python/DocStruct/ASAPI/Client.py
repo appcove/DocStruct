@@ -39,8 +39,7 @@ class Client(object):
 
   SchemaVersion = '1.0.0'
 
-  def __init__(self, *, Config, GetDB, Schema):
-    self.GetDB = GetDB
+  def __init__(self, *, Config, Schema):
     self.Schema = Schema
 
     # TODO: this should be converted to it's own object that validates the incoming dict
@@ -117,7 +116,7 @@ class Client(object):
   ###############################################################################
   def S3_UploadStarted(self, FileInfo):
     # Get the file record by S3_File_ESID
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=self.GetDB())
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=App.DB)
     # Now we can update the File record
     s3file.MarkAsStarted()
     return s3file
@@ -129,7 +128,7 @@ class Client(object):
     objectarn = "arn:aws:s3:::{0}/{1}".format(bucketname, key)
 
     # Get the File object from DB
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=self.GetDB())
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=App.DB)
     s3file.Input_Arn = objectarn
 
     # Prepare job parameters
@@ -174,7 +173,7 @@ class Client(object):
 
   ###############################################################################
   def S3_TranscodeStatusCheck(self, S3_File_ESID):
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=self.GetDB())
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=App.DB)
 
     key = s3file.Input_Arn.split(':')[-1].replace("{0}/".format(self.Config.OutputBucket), "").replace('input.dat', 'output.json')
 
@@ -194,7 +193,7 @@ class Client(object):
 
     # On complete we will create and save the output versions
     if state == "COMPLETED":
-      s3file.AddVersions(DB=self.GetDB(), AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
+      s3file.AddVersions(DB=App.DB, AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
 
     elif state == 'ERROR':
       s3file.Input_Error = json.dumps(jdict)
@@ -245,7 +244,7 @@ class Client(object):
     numfiles = 0
     numerrors = 0
     numtranscoded = 0
-    for f in AWS.S3_File.ListPending(DB=self.GetDB()):
+    for f in AWS.S3_File.ListPending(DB=App.DB):
       try:
         print("checking status for S3_File_MNID={0}, S3_File_ESID={1}".format(f.S3_File_MNID, f.S3_File_ESID))
         self.S3_TranscodeStatusCheck(f.S3_File_ESID)
@@ -270,7 +269,7 @@ class Client(object):
     To find the S3_File object, it looks up the Hash from the ACRM.File table and then
     pads it with "0", and uses that as an S3_File_ESID.
     '''
-    DB = self.GetDB()
+    DB = App.DB
     try:
       FileInfo = DB.Row('''
         SELECT
@@ -295,7 +294,7 @@ class Client(object):
 
     # If it already exists in S3_File, then exit
     try:
-      s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=self.GetDB())
+      s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=App.DB)
     except DB.NotOneFound:
       return None
 
@@ -307,7 +306,7 @@ class Client(object):
 
   ###############################################################################
   def S3_UploadFromACRM(self, File_MNID, *, GetFS, Input_Type='Video', Overwrite=False):
-    DB = self.GetDB()
+    DB = App.DB
     FS = GetFS()
     try:
       FileInfo = DB.Row('''
@@ -333,7 +332,7 @@ class Client(object):
 
     # If it already exists in S3_File, then exit
     try:
-      f = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=self.GetDB())
+      f = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=DB)
       if Overwrite:
         f.Delete()
       else:
@@ -383,7 +382,7 @@ class Client(object):
 
   ###############################################################################
   def S3_File_RetriggerJob(self, S3_File_MNID):
-    DB = self.GetDB()
+    DB = App.DB
     # Try to get the file info
     try:
       f = AWS.S3_File(S3_File_MNID)
