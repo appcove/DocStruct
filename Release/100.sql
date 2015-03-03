@@ -1,4 +1,4 @@
-BEGIN TRANSACTION
+BEGIN TRANSACTION;
 
 CREATE TABLE "AWS"."Release" (
     "Version" varchar(32) NOT NULL COLLATE "default"
