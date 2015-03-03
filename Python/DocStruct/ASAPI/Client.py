@@ -49,7 +49,7 @@ class Client(object):
     # One of the things to do here, because this should only run once per thread init,
     # is to check the Version of the Schema in the current DB connection and verify
     # that our code and the DB schema are in sync.
-    SchemaVersion = self.GetDB().Value('''
+    SchemaVersion = App.DB.Value('''
       SELECT
         "Version"
       FROM
