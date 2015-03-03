@@ -31,7 +31,8 @@ class BinariesClass():
   def Python2(self):
     if not self._Python2:
       try:
-        type(self)._Python2 = subprocess.check_output('which python2', stderr=subprocess.STDOUT, shell=True)
+        out = subprocess.check_output('which python2', stderr=subprocess.STDOUT, shell=True)
+        type(self)._Python2 = out.decode('utf-8').strip()
       except subprocess.CalledProcessError:
         print()
         print("Seems like python2 is not available.")
@@ -44,7 +45,8 @@ class BinariesClass():
   def Ghostscript(self):
     if not self._Ghostscript:
       try:
-        type(self)._Ghostscript = subprocess.call('which gs', stderr=subprocess.STDOUT, shell=True)
+        out = subprocess.check_output('which gs', stderr=subprocess.STDOUT, shell=True)
+        type(self)._Ghostscript = out.decode('utf-8').strip()
       except subprocess.CalledProcessError:
         print()
         print("Seems like ghostscript is not installed.")
@@ -57,7 +59,8 @@ class BinariesClass():
   def Identify(self):
     if not self._Identify:
       try:
-        type(self)._Identify = subprocess.call('which identify', stderr=subprocess.STDOUT, shell=True)
+        out = subprocess.check_output('which identify', stderr=subprocess.STDOUT, shell=True)
+        type(self)._Identify = out.decode('utf-8').strip()
       except subprocess.CalledProcessError:
         print()
         print("Seems like the program identify is not installed.")
@@ -70,7 +73,8 @@ class BinariesClass():
   def Convert(self):
     if not self._Convert:
       try:
-        type(self)._Convert = subprocess.call('which convert', stderr=subprocess.STDOUT, shell=True)
+        out = subprocess.check_output('which convert', stderr=subprocess.STDOUT, shell=True)
+        type(self)._Convert = out.decode('utf-8').strip()
       except subprocess.CalledProcessError:
         print()
         print("Seems like the program identify is not installed.")
@@ -93,7 +97,7 @@ class BinariesClass():
         type(self)._DocumentConverter = converter_path
       # Try to see if we can use the document converter to convert documents
       try:
-        subprocess.check_output(('python2', self._DocumentConverter, '/tmp/invalid.doc', '/tmp/invalid.pdf'), stderr=subprocess.STDOUT)
+        subprocess.check_output((self.Python2, self._DocumentConverter, '/tmp/invalid.doc', '/tmp/invalid.pdf'), stderr=subprocess.STDOUT)
       except subprocess.CalledProcessError as exc:
         if re.search(r'failed to connect', exc.output.decode('utf-8')):
           print()
@@ -211,7 +215,7 @@ class S3BackedFile():
     self._FilePathsToCleanup.append(FilePath)
 
   def InspectImage(self, FilePath):
-    out = subprocess.check_output((Binaries.Inspect, FilePath), stderr=subprocess.STDOUT)
+    out = subprocess.check_output((Binaries.Identify, FilePath), stderr=subprocess.STDOUT)
     parts = out.decode('utf-8').split(' ')
     ftype = parts[1]
     fsize = parts[2]
