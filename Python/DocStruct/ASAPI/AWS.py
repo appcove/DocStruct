@@ -160,10 +160,17 @@ class S3_File(metaclass=MetaRecord):
     return "Finished"
 
   #============================================================================
-  def GetVideoVersionList(self, *, DB):
+  def GetData(self, FieldSet=None):
+    r = super().GetData(FieldSet=FieldSet)
+    if 'VideoMap' in FieldSet:
+      r['VideoMap'] = App.DS.S3_ServeVideoVersionMapForS3File(self)
+    return r
+
+  #============================================================================
+  def GetVideoVersionList(self):
     if not self.IsTranscoded or self.Input_Error:
       return []
-    return DB.RowList('''
+    return App.DB.RowList('''
       SELECT
         "S3_File_Video"."VideoDuration" as "Duration",
         "S3_File_Video_Version"."VideoVersion" as "VideoVersion",
@@ -196,25 +203,22 @@ class S3_File(metaclass=MetaRecord):
     return self.Save()
 
   #============================================================================
-  def AddVersions(self, *, DB, AWSResponse, OutputBucket):
+  def AddVersions(self, *, AWSResponse, OutputBucket):
     # Handle creating of versions in a transaction
     if self.Input_Type == 'Video':
       S3_File_Video.AddVersions(
-        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
         )
     elif self.Input_Type.endswith('Image'):
       S3_File_Image.AddVersions(
-        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
         )
     elif self.Input_Type == 'Document':
       S3_File_Document.AddVersions(
-        DB=DB,
         S3_File_MNID=self.S3_File_MNID,
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
@@ -277,8 +281,8 @@ class S3_File(metaclass=MetaRecord):
 
   ###############################################################################
   @classmethod
-  def FindByESID(cls, *, S3_File_ESID, DB):
-    return cls(DB.Value('''
+  def FindByESID(cls, *, S3_File_ESID):
+    return cls(App.DB.Value('''
       SELECT
         "S3_File_MNID"
       FROM
@@ -291,12 +295,12 @@ class S3_File(metaclass=MetaRecord):
 
   ###############################################################################
   @classmethod
-  def ListByQuery(cls, Query, *, DB, **kwargs):
-    return [cls(row.S3_File_MNID) for row in DB.RowList(Query, **kwargs)]
+  def ListByQuery(cls, Query, **kwargs):
+    return [cls(row.S3_File_MNID) for row in App.DB.RowList(Query, **kwargs)]
 
   ###############################################################################
   @classmethod
-  def ListPending(cls, *, DB, Start=0, PageLength=100):
+  def ListPending(cls, Start=0, PageLength=100):
     return cls.ListByQuery('''
       SELECT
         "S3_File_MNID"
@@ -310,14 +314,13 @@ class S3_File(metaclass=MetaRecord):
       ORDER BY "Input_StartTime"
       OFFSET $Start LIMIT $PageLength
       ''',
-      DB=DB,
       Start=Start,
       PageLength=PageLength
       )
 
   ###############################################################################
   @classmethod
-  def ListUnStarted(cls, *, DB, Start=0, PageLength=100):
+  def ListUnStarted(cls, Start=0, PageLength=100):
     return cls.ListByQuery('''
       SELECT
         "S3_File_MNID"
@@ -328,14 +331,13 @@ class S3_File(metaclass=MetaRecord):
       ORDER BY "CreateDate"
       OFFSET $Start LIMIT $PageLength
       ''',
-      DB=DB,
       Start=Start,
       PageLength=PageLength
       )
 
   ###############################################################################
   @classmethod
-  def ListErroneous(cls, *, DB, Start=0, PageLength=100):
+  def ListErroneous(cls, Start=0, PageLength=100):
     return cls.ListByQuery('''
       SELECT
         "S3_File_MNID"
@@ -346,14 +348,13 @@ class S3_File(metaclass=MetaRecord):
       ORDER BY "CreateDate"
       OFFSET $Start LIMIT $PageLength
       ''',
-      DB=DB,
       Start=Start,
       PageLength=PageLength
       )
 
   ###############################################################################
   @classmethod
-  def ListCompleted(cls, *, DB, Start=0, PageLength=100):
+  def ListCompleted(cls, Start=0, PageLength=100):
     return cls.ListByQuery('''
       SELECT
         "S3_File_MNID"
@@ -364,7 +365,6 @@ class S3_File(metaclass=MetaRecord):
       ORDER BY "Input_StartTime"
       OFFSET $Start LIMIT $PageLength
       ''',
-      DB=DB,
       Start=Start,
       PageLength=PageLength
       )
@@ -388,13 +388,13 @@ class S3_File_Document(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def AddVersions(cls, *, DB, S3_File_MNID, AWSResponse, OutputBucket):
-    with DB.Transaction():
+  def AddVersions(cls, *, S3_File_MNID, AWSResponse, OutputBucket):
+    with App.DB.Transaction():
       # Save the main record
       Input = AWSResponse["Input"]
       try:
         doc = S3_File_Document(S3_File_MNID)
-      except DB.NotOneFound:
+      except App.DB.NotOneFound:
         doc = S3_File_Document(None)
         doc.S3_File_MNID = S3_File_MNID
       # Saving input properties here
@@ -408,7 +408,7 @@ class S3_File_Document(metaclass=MetaRecord):
           # Create the version records
           try:
             docversion = S3_File_Document_Version(S3_File_MNID, 'PDF')
-          except DB.NotOneFound:
+          except App.DB.NotOneFound:
             docversion = S3_File_Document_Version(None, None)
             docversion.S3_File_MNID = S3_File_MNID
           # Save the modified props
@@ -424,7 +424,7 @@ class S3_File_Document(metaclass=MetaRecord):
           quality = 'Regular' if output["Key"].find('.1200x1200.') > -1 else 'Thumbnail'
           try:
             docpage = S3_File_Document_Page(S3_File_MNID, i, quality)
-          except DB.NotOneFound:
+          except App.DB.NotOneFound:
             docpage = S3_File_Document_Page(None, None, None)
             docpage.S3_File_MNID = S3_File_MNID
             docpage.PageNumber = output["PageNumber"]
@@ -442,8 +442,8 @@ class S3_File_Document(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def DeleteAllRecords(cls, *, DB, S3_File_MNID):
-    DB.Execute('''
+  def DeleteAllRecords(cls, S3_File_MNID):
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Document_Page"
       WHERE
@@ -452,7 +452,7 @@ class S3_File_Document(metaclass=MetaRecord):
       S3_File_MNID = S3_File_MNID
       )
 
-    DB.Execute('''
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Document_Version"
       WHERE
@@ -461,7 +461,7 @@ class S3_File_Document(metaclass=MetaRecord):
       S3_File_MNID = S3_File_MNID
       )
 
-    DB.Execute('''
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Document"
       WHERE
@@ -556,13 +556,13 @@ class S3_File_Image(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def AddVersions(cls, *, DB, S3_File_MNID, AWSResponse, OutputBucket):
-    with DB.Transaction():
+  def AddVersions(cls, *, S3_File_MNID, AWSResponse, OutputBucket):
+    with App.DB.Transaction():
       # Save the main record
       Input = AWSResponse["Input"]
       try:
         img = S3_File_Image(S3_File_MNID)
-      except DB.NotOneFound:
+      except App.DB.NotOneFound:
         img = S3_File_Image(None)
         img.S3_File_MNID = S3_File_MNID
       # Saving input properties here
@@ -577,7 +577,7 @@ class S3_File_Image(metaclass=MetaRecord):
         # Create the version records
         try:
           imgversion = S3_File_Image_Version(S3_File_MNID, Quality, img.Width, img.Height)
-        except DB.NotOneFound:
+        except App.DB.NotOneFound:
           imgversion = S3_File_Image_Version(None, None, None, None)
           imgversion.S3_File_MNID = S3_File_MNID
         # Save the modified props
@@ -594,8 +594,8 @@ class S3_File_Image(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def DeleteAllRecords(cls, *, DB, S3_File_MNID):
-    DB.Execute('''
+  def DeleteAllRecords(cls, *, S3_File_MNID):
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Image_Version"
       WHERE
@@ -604,7 +604,7 @@ class S3_File_Image(metaclass=MetaRecord):
       S3_File_MNID = S3_File_MNID
       )
 
-    DB.Execute('''
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Image"
       WHERE
@@ -665,14 +665,14 @@ class S3_File_Video(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def AddVersions(cls, *, DB, S3_File_MNID, AWSResponse, OutputBucket):
-    with DB.Transaction():
+  def AddVersions(cls, *, S3_File_MNID, AWSResponse, OutputBucket):
+    with App.DB.Transaction():
       for i, output in enumerate(AWSResponse["outputs"]):
         if i == 0:
           # Get or create the main record
           try:
             vid = S3_File_Video(S3_File_MNID)
-          except DB.NotOneFound:
+          except App.DB.NotOneFound:
             vid = S3_File_Video(None)
             vid.S3_File_MNID = S3_File_MNID
           # Update a video version
@@ -682,7 +682,7 @@ class S3_File_Video(metaclass=MetaRecord):
         VideoVersion = "Web" if output['key'].endswith('mp4') else "Webm"
         try:
           vidversion = S3_File_Video_Version(S3_File_MNID, VideoVersion)
-        except DB.NotOneFound:
+        except App.DB.NotOneFound:
           vidversion = S3_File_Video_Version(None, None)
           vidversion.S3_File_MNID = S3_File_MNID
           vidversion.VideoVersion = VideoVersion
@@ -699,9 +699,9 @@ class S3_File_Video(metaclass=MetaRecord):
 
   #============================================================================
   @classmethod
-  def DeleteAllRecords(cls, *, DB, S3_File_MNID):
+  def DeleteAllRecords(cls, *, S3_File_MNID):
     # Delete records from S3_File_Video_Version
-    DB.Execute('''
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Video_Version"
       WHERE
@@ -710,7 +710,7 @@ class S3_File_Video(metaclass=MetaRecord):
       S3_File_MNID = S3_File_MNID
       )
     # Delete records from S3_File_Video
-    DB.Execute('''
+    App.DB.Execute('''
       DELETE FROM
         "AWS"."S3_File_Video"
       WHERE

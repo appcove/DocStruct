@@ -3,7 +3,9 @@
 import json
 import mimetypes
 from datetime import datetime, timezone, timedelta
+from collections import OrderedDict
 
+from AppStruct.Util import aadict
 from AppStruct.Security import RandomHex
 
 from ..Base import GetSession, S3, SQS
@@ -116,7 +118,7 @@ class Client(object):
   ###############################################################################
   def S3_UploadStarted(self, FileInfo):
     # Get the file record by S3_File_ESID
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=App.DB)
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'])
     # Now we can update the File record
     s3file.MarkAsStarted()
     return s3file
@@ -128,7 +130,7 @@ class Client(object):
     objectarn = "arn:aws:s3:::{0}/{1}".format(bucketname, key)
 
     # Get the File object from DB
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'], DB=App.DB)
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=FileInfo['S3_File_ESID'])
     s3file.Input_Arn = objectarn
 
     # Prepare job parameters
@@ -173,7 +175,7 @@ class Client(object):
 
   ###############################################################################
   def S3_TranscodeStatusCheck(self, S3_File_ESID):
-    s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=App.DB)
+    s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID)
 
     key = s3file.Input_Arn.split(':')[-1].replace("{0}/".format(self.Config.OutputBucket), "").replace('input.dat', 'output.json')
 
@@ -193,7 +195,7 @@ class Client(object):
 
     # On complete we will create and save the output versions
     if state == "COMPLETED":
-      s3file.AddVersions(DB=App.DB, AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
+      s3file.AddVersions(AWSResponse=jdict, OutputBucket=self.Config.OutputBucket)
 
     elif state == 'ERROR':
       s3file.Input_Error = json.dumps(jdict)
@@ -216,6 +218,20 @@ class Client(object):
     """
 
     s3file = AWS.S3_File(S3_File_MNID)
+    return self.S3_ServeVideoVersionMap(s3file)
+
+  ###############################################################################
+  def S3_ServeVideoVersionMapForS3File(self, s3file, expiresin=10800):
+    """
+    Create the URIs for serving different video versions of this file
+
+    Returns
+
+    OrderedDict {
+      VideoVersion: aadict(src = ..., type=...)
+      ...
+      }
+    """
 
     # If there was an error, we can just return None
     if s3file.Input_Error:
@@ -228,7 +244,7 @@ class Client(object):
     OutputMap = OrderedDict()
 
     for version in s3file.GetVideoVersionList():
-      bucket, key = self.Config.GetBucketAndKeyFromArn(version["Arn"])
+      bucket, key = self.GetBucketAndKeyFromArn(version["Arn"])
 
       OutputMap[version.VideoVersion] = aadict(
         src = S3.GetSignedUrl(self.Session, bucket, key, expiresin),
@@ -244,7 +260,7 @@ class Client(object):
     numfiles = 0
     numerrors = 0
     numtranscoded = 0
-    for f in AWS.S3_File.ListPending(DB=App.DB):
+    for f in AWS.S3_File.ListPending():
       try:
         print("checking status for S3_File_MNID={0}, S3_File_ESID={1}".format(f.S3_File_MNID, f.S3_File_ESID))
         self.S3_TranscodeStatusCheck(f.S3_File_ESID)
@@ -294,7 +310,7 @@ class Client(object):
 
     # If it already exists in S3_File, then exit
     try:
-      s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=App.DB)
+      s3file = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID)
     except DB.NotOneFound:
       return None
 
@@ -332,7 +348,7 @@ class Client(object):
 
     # If it already exists in S3_File, then exit
     try:
-      f = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID, DB=DB)
+      f = AWS.S3_File.FindByESID(S3_File_ESID=S3_File_ESID)
       if Overwrite:
         f.Delete()
       else:
