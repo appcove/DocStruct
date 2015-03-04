@@ -321,9 +321,9 @@ class Client(object):
     return s3file
 
   ###############################################################################
-  def S3_UploadFromACRM(self, File_MNID, *, GetFS, Input_Type='Video', Overwrite=False):
+  def S3_UploadFromACRM(self, File_MNID, *, Input_Type='Video', Overwrite=False):
     DB = App.DB
-    FS = GetFS()
+    FS = App.FS
     try:
       FileInfo = DB.Row('''
         SELECT
