@@ -162,7 +162,7 @@ class S3_File(metaclass=MetaRecord):
   #============================================================================
   def GetData(self, FieldSet=None):
     r = super().GetData(FieldSet=FieldSet)
-    if 'VideoMap' in FieldSet:
+    if FieldSet is not None and 'VideoMap' in FieldSet:
       r['VideoMap'] = App.DS.S3_ServeVideoVersionMapForS3File(self)
     return r
 
