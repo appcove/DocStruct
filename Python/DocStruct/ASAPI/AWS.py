@@ -176,9 +176,9 @@ class S3_File(metaclass=MetaRecord):
   #============================================================================
   def GetData(self, FieldSet=None):
     r = super().GetData(FieldSet=FieldSet)
-    if FieldSet is not None and 'VideoMap' in FieldSet:
+    if (FieldSet is None) or (FieldSet is not None and 'VideoMap' in FieldSet):
       r['VideoMap'] = self.VideoMap
-    if FieldSet is not None and 'VideoDuration' in FieldSet:
+    if (FieldSet is None) or (FieldSet is not None and 'VideoDuration' in FieldSet):
       r['VideoDuration'] = self.VideoDuration
     return r
 
