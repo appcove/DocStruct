@@ -160,10 +160,26 @@ class S3_File(metaclass=MetaRecord):
     return "Finished"
 
   #============================================================================
+  @property
+  def VideoMap(self):
+    return App.DS.S3_ServeVideoVersionMapForS3File(self)
+
+  #============================================================================
+  @property
+  def VideoDuration(self):
+    try:
+      d = S3_File_Video(self.S3_File_MNID)
+      return d.VideoDuration
+    except App.DB.NotOneFound:
+      return None
+
+  #============================================================================
   def GetData(self, FieldSet=None):
     r = super().GetData(FieldSet=FieldSet)
     if FieldSet is not None and 'VideoMap' in FieldSet:
-      r['VideoMap'] = App.DS.S3_ServeVideoVersionMapForS3File(self)
+      r['VideoMap'] = self.VideoMap
+    if FieldSet is not None and 'VideoDuration' in FieldSet:
+      r['VideoDuration'] = self.VideoDuration
     return r
 
   #============================================================================
