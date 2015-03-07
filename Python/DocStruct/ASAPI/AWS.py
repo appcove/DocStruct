@@ -12,6 +12,7 @@ from AppStruct.Util import aadict, SQL
 from AppStruct.Security import RandomHex
 
 from Project.Base import MakeSIUD
+import Pusher.ClientLib
 
 from ..JobSpecification import TranscodeVideoJob, ConvertToPDFJob, ResizeImageJob, NormalizeImageJob
 
@@ -243,6 +244,17 @@ class S3_File(metaclass=MetaRecord):
     self.Input_JobArn = ""
     self.IsTranscoded = True
     self.Save()
+
+    if self.Input_Type == 'Video':
+      # Send pusher message
+      PusherChannel = 'presence-channel_docstruct_' + str(App.DevLevel)
+      PusherClient = Pusher.ClientLib.Pusher(**App.Pusher)
+      # Send pusher update message
+      PusherClient[PusherChannel].trigger('video-file-transcoded',{
+        'S3_File_MNID' : self.S3_File_MNID,
+        'Input_FileName' : self.Input_FileName,
+      })
+
     # Return
     return self
 
