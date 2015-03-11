@@ -134,7 +134,7 @@ class Client(object):
     s3file.Input_Arn = objectarn
 
     # Prepare job parameters
-    jobparams = s3file.PrepareJobParameters(self)
+    jobparams = s3file.PrepareJobParameters(self) if s3file.Input_Type != 'Simple' else ''
     if not jobparams:
       return {"Message": ""}
 
@@ -205,6 +205,11 @@ class Client(object):
     return s3file
 
   ###############################################################################
+  def S3_SignedUrlForFile(S3_File, expiresin=10800):
+    bucket, key = self.Config.GetBucketAndKeyFromArn(S3_File.Input_Arn)
+    return S3.GetSignedUrl(self.Session, bucket, key, expiresin)
+
+  ###############################################################################
   def S3_ServeVideoVersionMap(self, S3_File_MNID, expiresin=10800):
     """
     Create the URIs for serving different video versions of this file
@@ -218,7 +223,7 @@ class Client(object):
     """
 
     s3file = AWS.S3_File(S3_File_MNID)
-    return self.S3_ServeVideoVersionMap(s3file)
+    return self.S3_ServeVideoVersionMapForS3File(s3file)
 
   ###############################################################################
   def S3_ServeVideoVersionMapForS3File(self, s3file, expiresin=10800):
