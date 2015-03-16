@@ -106,6 +106,7 @@ def GetObjectPolicy(bucketname, expiretime, params):
       {"acl": d["acl"]},
       success_action_condition,
       ["starts-with", "$Content-Type", ""],
+      ["starts-with", "$Content-Disposition", ""],
       ["starts-with", "$x-amz-meta-filename", ""],
       ["starts-with", "$name", ""],
     ]),
@@ -236,6 +237,7 @@ def GetFormParameters(session, bucketname, keyuuid, algo="HMAC-SHA256", redirect
     extra = {"AWSAccessKeyId": creds.access_key.strip(), "acl": "authenticated-read"}
   else:
     extra = {}
+  extra['Content-Disposition'] = 'attachment; filename="${filename}"'
   ret = GetBaseFormParameters(bucketname, keyprefix, keyuuid, redirectto, contenttype, extra)
   # Based on the algorithm requested, we will decide on policy
   if algo == "HMAC-SHA256":
