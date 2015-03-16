@@ -135,12 +135,13 @@ class Client(object):
 
     # Prepare job parameters
     jobparams = s3file.PrepareJobParameters(self) if s3file.Input_Type != 'Simple' else ''
-    if not jobparams:
-      return {"Message": ""}
-
-    jobspec = jobparams.ToJSON()
-    # Post message to SQS
-    message = SQS.PostMessage(self.Session, self.Config.QueueUrl, jobspec)
+    if jobparams:
+      jobspec = jobparams.ToJSON()
+      # Post message to SQS
+      message = SQS.PostMessage(self.Session, self.Config.QueueUrl, jobspec)
+    else:
+      jobspec = '{}'
+      message = aadict({"message_id": ""})
 
     # Now we can mark the file as finished uploading.
     # NOTE: we pass in an empty string for the JobArn so that the pending queries still work
@@ -205,8 +206,8 @@ class Client(object):
     return s3file
 
   ###############################################################################
-  def S3_SignedUrlForFile(S3_File, expiresin=10800):
-    bucket, key = self.Config.GetBucketAndKeyFromArn(S3_File.Input_Arn)
+  def S3_SignedUrlForFile(self, S3_File, expiresin=10800):
+    bucket, key = self.GetBucketAndKeyFromArn(S3_File.Input_Arn)
     return S3.GetSignedUrl(self.Session, bucket, key, expiresin)
 
   ###############################################################################
