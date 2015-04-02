@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import json
 import mimetypes
-import traceback
 import os.path
 
 from datetime import datetime, timedelta, timezone
