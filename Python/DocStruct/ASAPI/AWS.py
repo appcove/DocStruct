@@ -213,7 +213,8 @@ class S3_File(metaclass=MetaRecord):
   #============================================================================
   def MarkAsEnded(self, *, JobArn, ObjectArn, JobSpecification):
     self.Input_Arn = ObjectArn
-    self.Input_JobArn = JobArn
+    if JobArn is not None:
+      self.Input_JobArn = JobArn
     self.Input_EndTime = SQL('NOW()')
     self.JobSpecification = JobSpecification
     return self.Save()

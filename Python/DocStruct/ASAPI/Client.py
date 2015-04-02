@@ -140,13 +140,15 @@ class Client(object):
       jobspec = jobparams.ToJSON()
       # Post message to SQS
       message = SQS.PostMessage(self.Session, self.Config.QueueUrl, jobspec)
+      jobarn = ""
     else:
       jobspec = '{}'
       message = aadict({"message_id": ""})
+      jobarn = None
 
     # Now we can mark the file as finished uploading.
     # NOTE: we pass in an empty string for the JobArn so that the pending queries still work
-    s3file.MarkAsEnded(JobArn="", ObjectArn=objectarn, JobSpecification=jobspec)
+    s3file.MarkAsEnded(JobArn=jobarn, ObjectArn=objectarn, JobSpecification=jobspec)
 
     # That's it. We're ready to return the message id
     return {"Message": message.message_id}
