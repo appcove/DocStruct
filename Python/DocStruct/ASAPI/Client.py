@@ -389,15 +389,15 @@ class Client(object):
       )
 
     # We are about to start upload
-    S3_UploadStarted({'S3_File_ESID': S3_File_ESID})
+    self.S3_UploadStarted({'S3_File_ESID': S3_File_ESID})
 
     # Upload the file to S3
     with open(FS[FileInfo.Hash].Path, "rb") as fp:
-      S3.PutObject(session=self.session, bucket=self.Config.InputBucket, key=key, content=fp, type_=FileInfo.ContentType)
+      S3.PutObject(session=self.Session, bucket=self.Config.InputBucket, key=key, content=fp, type_=FileInfo.ContentType)
 
     # Since file has uploaded we can mark it as ended.
     # NOTE: this also posts the SQS message to transcode file
-    S3_UploadComplete({
+    self.S3_UploadComplete({
       "Key": key,
       "Bucket": self.Config.InputBucket,
       "S3_File_ESID": S3_File_ESID,
