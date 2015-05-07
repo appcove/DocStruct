@@ -65,28 +65,33 @@ def CreatePipeline(*, session, pipelinename, role_arn, inputbucketname, outputbu
   return pipeline
 
 
-def StartTranscoding(*, session, pipeline_id, video_path, outputs, output_key_prefix):
+def StartTranscoding(*, session, pipeline_id, input_path, outputs, output_key_prefix, with_thumbnails=False):
   """Start transcoding a video pointed to by keyname
 
   :param session: The session to user for credentials
   :type session: boto3.session.Session
   :param pipeline_id: Name of the pipeline into which this job will be pushed
   :type pipeline_id: str
-  :param video_path: Path to the video file (relative to the input bucket)
-  :type video_path: str
+  :param input_path: Path to the video file (relative to the input bucket)
+  :type input_path: str
   :param outputs: The outputs to which the video file should be transcoded
   :type outputs: list
   :param output_key_prefix: The prefix for output files
   :type output_key_prefix: str
+  :param with_thumbnails: If True, we'll create thumbnails
+  :type with_thumbnails: bool
   :return: Info about the newly created job
   :rtype: dict
   """
+  input_params = {"Key": input_path}
+  if with_thumbnails:
+    input_params["ThumbnailPattern"] = 'thumbnail_{resolution}_{count}.png'
   etconn = session.connect_to("elastictranscoder")
   Jobs = session.get_collection("elastictranscoder", "JobCollection")
   jobs = Jobs(connection=etconn)
   job = jobs.create(
     pipeline_id=pipeline_id,
-    input={"Key": video_path},
+    input=input_params,
     output_key_prefix="{0}/".format(output_key_prefix),
     outputs=outputs)
   # Return info for the job so that we can get status etc...

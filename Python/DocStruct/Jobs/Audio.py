@@ -5,15 +5,13 @@ from . import Job
 
 
 @Job
-def TranscodeVideo(*, InputKey, OutputKeyPrefix, OutputFormats, Config, Logger):
-  Logger.debug("TranscodeVideo started for {0}".format(InputKey))
+def TranscodeAudio(*, InputKey, OutputKeyPrefix, OutputFormats, Config, Logger):
+  Logger.debug("TranscodeAudio started for {0}".format(InputKey))
   # Convert formats to output types
   Outputs = []
   for o in OutputFormats:
-    if o == 'webm':
-      Outputs.append({'Key': 'video.webm', 'PresetId': basename(Config.ElasticTranscoder_WebmPresetArn)})
-    elif o == 'mp4':
-      Outputs.append({'Key': 'video.mp4', 'PresetId': basename(Config.ElasticTranscoder_WebPresetArn)})
+    PresetConfigProperty = "ElasticTranscoder_{0}PresetArn".format(o.upper())
+    Outputs.append({'Key': 'audio.{0}'.format(o), 'PresetId': basename(getattr(Config, PresetConfigProperty))})
   # Set Pipeline ID
   PipelineId = basename(Config.ElasticTranscoder_PipelineArn)
   # Trigger the transcoding

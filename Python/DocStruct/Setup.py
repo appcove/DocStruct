@@ -96,6 +96,8 @@ def SetupEnvironment(*, CredsFilePath, EnvironmentID, WithDistribution=False):
   webm_presetarn = ElasticTranscoder.GetPresetWithName(session=session, presetname="User preset: Webm")
   if not webm_presetarn:
     webm_presetarn = ElasticTranscoder.CreatePreset(session=session, presetdata=ElasticTranscoder.WEBM_PRESET_DATA)
+  # Get Audio Presets
+  mp3_presetarn = ElasticTranscoder.GetPresetWithName(session=session, presetname="System preset: Audio MP3 - 320k")
   # We can subscribe to the SNS topic using the SQS queue so that elastic transcoder
   # notifications are handled by the same jobs processing server
   SNS.CreateSQSQueueSubscription(session=session, queuearn=qarn, topicarn=topic.topic_arn)
@@ -122,6 +124,7 @@ def SetupEnvironment(*, CredsFilePath, EnvironmentID, WithDistribution=False):
   config.ElasticTranscoder_TopicArn = topic.topic_arn
   config.ElasticTranscoder_WebPresetArn = web_presetarn
   config.ElasticTranscoder_WebmPresetArn = webm_presetarn
+  config.ElasticTranscoder_MP3PresetArn = mp3_presetarn
   # Set the S3 config
   config.S3_InputBucket = inputbucket.bucket
   config.S3_OutputBucket = inputbucket.bucket
