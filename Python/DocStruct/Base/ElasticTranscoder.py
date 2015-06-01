@@ -65,7 +65,7 @@ def CreatePipeline(*, session, pipelinename, role_arn, inputbucketname, outputbu
   return pipeline
 
 
-def StartTranscoding(*, session, pipeline_id, input_path, outputs, output_key_prefix, with_thumbnails=False):
+def StartTranscoding(*, session, pipeline_id, input_path, outputs, output_key_prefix):
   """Start transcoding a video pointed to by keyname
 
   :param session: The session to user for credentials
@@ -78,22 +78,19 @@ def StartTranscoding(*, session, pipeline_id, input_path, outputs, output_key_pr
   :type outputs: list
   :param output_key_prefix: The prefix for output files
   :type output_key_prefix: str
-  :param with_thumbnails: If True, we'll create thumbnails
-  :type with_thumbnails: bool
   :return: Info about the newly created job
   :rtype: dict
   """
   input_params = {"Key": input_path}
-  if with_thumbnails:
-    input_params["ThumbnailPattern"] = 'thumbnail_{resolution}_{count}.png'
   etconn = session.connect_to("elastictranscoder")
   Jobs = session.get_collection("elastictranscoder", "JobCollection")
   jobs = Jobs(connection=etconn)
   job = jobs.create(
     pipeline_id=pipeline_id,
     input=input_params,
-    output_key_prefix="{0}/".format(output_key_prefix),
-    outputs=outputs)
+    output_key_prefix=output_key_prefix if output_key_prefix.endswith('/') else "{0}/".format(output_key_prefix),
+    outputs=outputs
+    )
   # Return info for the job so that we can get status etc...
   return job.get()
 

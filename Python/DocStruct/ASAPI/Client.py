@@ -87,6 +87,17 @@ class Client(object):
     filename = FileInfo["FileName"]
     filetype = FileInfo["FileType"]
     mimetype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    if not filetype:
+      if mimetype.startswith('image'):
+        filetype = 'ShockboxImage'
+      elif mimetype.startswith('video'):
+        filetype = 'Video'
+      elif mimetype.startswith('audio'):
+        filetype = 'Audio'
+      elif mimetype in PDF_MIMETYPES:
+        filetype = 'Document'
+      else:
+        filetype = 'Simple'
     esid = (datetime.now().strftime('%Y%m%d%H%M%S') + RandomHex())[0:64]
     expiresat = datetime.utcnow() + timedelta(seconds=expiresin)
     key = "{0}/{1}".format(self.Config.KeyPrefix, esid)

@@ -46,6 +46,18 @@ class TranscodeVideoJob(JobSpecification):
 
 
 ##################################################
+class TranscodeAudioJob(JobSpecification):
+
+  Name = "TranscodeAudio"
+
+  @property
+  def ExtraParams(self):
+    return {
+      "OutputFormats": ('mp3',)
+      }
+
+
+##################################################
 class ConvertToPDFJob(JobSpecification):
 
   Name = "ConvertToPDF"
@@ -68,7 +80,7 @@ class ResizeImageJob(JobSpecification):
         (1200, 1200, 'Regular.jpg'),
         (480, 480, 'Small.jpg'),
         (160, 160, 'Thumbnail.jpg'),
-      )}
+        )}
 
 
 ##################################################
@@ -79,5 +91,7 @@ class NormalizeImageJob(JobSpecification):
   @property
   def ExtraParams(self):
     return {
-      "PreferredOutputs": ((200, 200, '200x200-nomarlized.jpg'), (300, 300, '300x300-normalized.jpg'),)
-      }
+      "PreferredOutputs": (
+        (200, 200, '200x200-nomarlized.jpg'),
+        (300, 300, '300x300-normalized.jpg'),
+        )}

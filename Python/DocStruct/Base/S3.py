@@ -268,7 +268,7 @@ def GetFormParameters(session, bucketname, keyuuid, algo="HMAC-SHA256", redirect
   }
 
 
-def GetObject(*, session, bucket, key):
+def GetObject(*, session, bucket, key, return_data=True):
   """Get the object data as saved in S3
 
   :param session: The session to use for AWS access
@@ -277,22 +277,25 @@ def GetObject(*, session, bucket, key):
   :type bucket: str
   :param key: The file to extract from S3
   :type key: str
+  :param return_data: If True, the data pointed to by KEY will be returned. If False, an instance of S3Object will be returned
+  :type return_data: bool
   :return: The data saved at the given filename
   :rtype: bytes
   """
   s3conn = session.connect_to("s3")
   S3Object = session.get_resource("s3", "S3Object")
   o = S3Object(connection=s3conn, bucket=bucket, key=key)
-  ret = None
+
   try:
     resp = o.get()
   except ServerError:
     pass
-  else:
-    if resp["ContentType"] == "application/xml":
-      return None
-    ret = resp["Body"].data
-  return ret
+
+  if resp["ContentType"] == "application/xml":
+    return None
+  if not return_data:
+    return resp
+  return resp["Body"].data
 
 
 def GetJSON(*, session, bucket, key):
@@ -313,7 +316,7 @@ def GetJSON(*, session, bucket, key):
   return json.loads(obj.decode('utf-8'))
 
 
-def PutObject(*, session, bucket, key, content, type_="application/octet-stream"):
+def PutObject(*, session, bucket, key, content, type_="application/octet-stream", **obj_metadata):
   """Saves data to S3 under specified filename and bucketname
 
   :param session: The session to use for AWS connection
@@ -326,6 +329,8 @@ def PutObject(*, session, bucket, key, content, type_="application/octet-stream"
   :type content: bytes | str
   :param type_: Content type of the data to put
   :type type_: str
+  :param obj_metadata: key=>value pairs defining additional metadata to add to object
+  :type obj_metadata: keyword params
   :return: The new S3 object
   :rtype: boto3.core.resource.S3Object
   """
@@ -338,15 +343,67 @@ def PutObject(*, session, bucket, key, content, type_="application/octet-stream"
     # to Create/List Buckets. In such cases and error is thrown. We can still try to
     # save and assume the bucket already exists.
     pass
+
   # Now we can create the object
   S3Objects = session.get_collection("s3", "S3ObjectCollection")
   s3objects = S3Objects(connection=s3conn, bucket=bucket, key=key)
+
   if isinstance(content, str):
     bindata = content.encode("utf-8")
   else:
     bindata = content
+
   # Now we create the object
-  return s3objects.create(key=key, acl="private", content_type=type_, body=bindata)
+  return s3objects.create(
+    key=key,
+    acl="private",
+    content_type=type_,
+    body=bindata,
+    **obj_metadata
+    )
+
+
+def UpdateObject(*, session, bucket, key, **obj_metadata):
+  """Updates metadata of the object stored at KEY
+
+  :param session: The session to use for AWS connection
+  :type session: boto3.session.Session
+  :param bucket: Name of bucket
+  :type bucket: str
+  :param key: Name of file
+  :type key: str
+  :param obj_metadata: key=>value pairs defining additional metadata to add to object
+  :type obj_metadata: keyword params
+  :return: The S3 object referred to by KEY
+  :rtype: boto3.core.resource.S3Object
+  """
+  s3conn = session.connect_to("s3")
+  # Now we can create the object
+  S3Object = session.get_resource("s3", "S3Object")
+  s3object = S3Object(connection=s3conn, bucket=bucket, key=key)
+
+  # Now we get the object metadata
+  newmetadata = s3object.head()
+  if 'CacheControl' in newmetadata:
+    newmetadata['cache_control'] = newmetadata['CacheControl']
+  if 'ContentDisposition' in newmetadata:
+    newmetadata['content_disposition'] = newmetadata['ContentDisposition']
+  if 'ContentEncoding' in newmetadata:
+    newmetadata['content_encoding'] = newmetadata['ContentEncoding']
+  if 'ContentLanguage' in newmetadata:
+    newmetadata['content_language'] = newmetadata['ContentLanguage']
+  if 'ContentType' in newmetadata:
+    newmetadata['content_type'] = newmetadata['ContentType']
+  newmetadata.update(obj_metadata)
+
+  return s3object.copy(
+    bucket=bucket,
+    key=key,
+    copy_source='{0}/{1}'.format(bucket, key),
+    preserve_acl=True,
+    metadata_directive='REPLACE',
+    **newmetadata
+    )
 
 
 def PutJSON(*, session, bucket, key, content):

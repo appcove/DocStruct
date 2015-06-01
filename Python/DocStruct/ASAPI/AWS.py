@@ -13,7 +13,7 @@ from AppStruct.Security import RandomHex
 from Project.Base import MakeSIUD
 import Pusher.ClientLib
 
-from ..JobSpecification import TranscodeVideoJob, ConvertToPDFJob, ResizeImageJob, NormalizeImageJob
+from ..JobSpecification import TranscodeVideoJob, TranscodeAudioJob, ConvertToPDFJob, ResizeImageJob, NormalizeImageJob
 
 
 ###############################################################################
@@ -228,6 +228,12 @@ class S3_File(metaclass=MetaRecord):
         AWSResponse=AWSResponse,
         OutputBucket=OutputBucket
         )
+    elif self.Input_Type == 'Audio':
+      S3_File_Audio.AddVersions(
+        S3_File_MNID=self.S3_File_MNID,
+        AWSResponse=AWSResponse,
+        OutputBucket=OutputBucket
+        )
     elif self.Input_Type.endswith('Image'):
       S3_File_Image.AddVersions(
         S3_File_MNID=self.S3_File_MNID,
@@ -268,6 +274,9 @@ class S3_File(metaclass=MetaRecord):
 
     if self.Input_Type == "Video":
       jobcls = TranscodeVideoJob
+
+    elif self.Input_Type == "Audio":
+      jobcls = TranscodeAudioJob
 
     elif self.Input_Type == "ShockBoxImage":
       jobcls = ResizeImageJob
@@ -692,6 +701,18 @@ class S3_File_Video(metaclass=MetaRecord):
     Flags = +Read +InsertWrite +InsertRequired
 
   #============================================================================
+  @property
+  def Thumbnails(self):
+    # TODO
+    return []
+
+  #============================================================================
+  @property
+  def SelectedThumbnail(self):
+    # TODO
+    return None
+
+  #============================================================================
   @classmethod
   def AddVersions(cls, *, S3_File_MNID, AWSResponse, OutputBucket):
     with App.DB.Transaction():
@@ -787,11 +808,11 @@ class S3_File_Video_Version(metaclass=MetaRecord):
 
 
 ###############################################################################
-class S3_File_Video_Version(metaclass=MetaRecord):
+class S3_File_Video_Thumbnail(metaclass=MetaRecord):
   SCHEMA = 'AWS'
-  TABLE = 'S3_File_Video_Version'
+  TABLE = 'S3_File_Video_Thumbnail'
 
-  PrimaryKeyFields = ['S3_File_MNID', 'VideoVersion']
+  PrimaryKeyFields = ['S3_File_MNID', 'Index']
   SELECT,INSERT,UPDATE,DELETE = MakeSIUD(SCHEMA, TABLE, *PrimaryKeyFields)
 
   #============================================================================
@@ -799,8 +820,7 @@ class S3_File_Video_Version(metaclass=MetaRecord):
     Flags = +Read +InsertWrite +InsertRequired
 
   #============================================================================
-  class VideoVersion(StringField):
-    MaxLength = 16
+  class Index(IntegerField):
     Flags = +Read +InsertWrite +InsertRequired
 
   #============================================================================
@@ -809,6 +829,105 @@ class S3_File_Video_Version(metaclass=MetaRecord):
 
   #============================================================================
   class Height(IntegerField):
+    Flags = +Read +InsertWrite +InsertRequired
+
+  #============================================================================
+  class Arn(StringField):
+    MaxLength = 1024
+    Flags = +Read +InsertWrite +InsertRequired
+
+
+###############################################################################
+class S3_File_Audio(metaclass=MetaRecord):
+  SCHEMA = 'AWS'
+  TABLE = 'S3_File_Audio'
+
+  PrimaryKeyFields = ['S3_File_MNID']
+  SELECT,INSERT,UPDATE,DELETE = MakeSIUD(SCHEMA, TABLE, *PrimaryKeyFields)
+
+  #============================================================================
+  class S3_File_MNID(IntegerField):
+    Flags = +Read +InsertWrite +InsertRequired
+
+  #============================================================================
+  class Duration(IntegerField):
+    Flags = +Read +InsertWrite +InsertRequired
+
+  #============================================================================
+  @classmethod
+  def AddVersions(cls, *, S3_File_MNID, AWSResponse, OutputBucket):
+    with App.DB.Transaction():
+      for i, output in enumerate(AWSResponse["outputs"]):
+        if i == 0:
+          # Get or create the main record
+          try:
+            aud = S3_File_Audio(S3_File_MNID)
+          except App.DB.NotOneFound:
+            aud = S3_File_Audio(None)
+            aud.S3_File_MNID = S3_File_MNID
+          # Update audio version
+          aud.AudioDuration = output["duration"]
+          aud.Save()
+        # Create the audio version
+        AudioVersion = "MP3"
+        try:
+          audversion = S3_File_Audio_Version(S3_File_MNID, AudioVersion)
+        except App.DB.NotOneFound:
+          audversion = S3_File_Video_Version(None, None)
+          audversion.S3_File_MNID = S3_File_MNID
+          audversion.AudioVersion = AudioVersion
+        # Save the modified props
+        audversion.Bitrate = output["bitrate"]
+        audversion.Arn = "arn:aws:s3:::{0}/{1}{2}".format(
+          OutputBucket,
+          AWSResponse["outputKeyPrefix"],
+          output["key"]
+          )
+        audversion.TranscoderDump = json.dumps(output)
+        audversion.Save()
+
+  #============================================================================
+  @classmethod
+  def DeleteAllRecords(cls, *, S3_File_MNID):
+    # Delete records from S3_File_Audio_Version
+    App.DB.Execute('''
+      DELETE FROM
+        "AWS"."S3_File_Audio_Version"
+      WHERE
+        "S3_File_MNID" = $S3_File_MNID
+      ''',
+      S3_File_MNID = S3_File_MNID
+      )
+    # Delete records from S3_File_Audio
+    App.DB.Execute('''
+      DELETE FROM
+        "AWS"."S3_File_Audio"
+      WHERE
+        "S3_File_MNID" = $S3_File_MNID
+      ''',
+      S3_File_MNID = S3_File_MNID
+      )
+
+
+###############################################################################
+class S3_File_Audio_Version(metaclass=MetaRecord):
+  SCHEMA = 'AWS'
+  TABLE = 'S3_File_Audio_Version'
+
+  PrimaryKeyFields = ['S3_File_MNID', 'AudioVersion']
+  SELECT,INSERT,UPDATE,DELETE = MakeSIUD(SCHEMA, TABLE, *PrimaryKeyFields)
+
+  #============================================================================
+  class S3_File_MNID(IntegerField):
+    Flags = +Read +InsertWrite +InsertRequired
+
+  #============================================================================
+  class AudioVersion(StringField):
+    MaxLength = 16
+    Flags = +Read +InsertWrite +InsertRequired
+
+  #============================================================================
+  class Bitrate(IntegerField):
     Flags = +Read +InsertWrite +InsertRequired
 
   #============================================================================

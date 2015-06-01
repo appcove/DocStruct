@@ -20,13 +20,13 @@ JOBS_MAP = {}
 
 
 class BinariesClass():
-  
+
   _Python2 = ""
   _Ghostscript = ""
   _Identify = ""
   _Convert = ""
   _DocumentConverter = ""
-  
+
   @property
   def Python2(self):
     if not self._Python2:
@@ -40,7 +40,7 @@ class BinariesClass():
         print()
         sys.exit(1)
     return self._Python2
-  
+
   @property
   def Ghostscript(self):
     if not self._Ghostscript:
@@ -82,7 +82,7 @@ class BinariesClass():
         print()
         sys.exit(1)
     return self._Convert
-  
+
   @property
   def DocumentConverter(self):
     if not self._DocumentConverter:
@@ -106,7 +106,7 @@ class BinariesClass():
           print()
           sys.exit(1)
     return self._DocumentConverter
-  
+
 
 Binaries = BinariesClass()
 
@@ -229,6 +229,87 @@ class S3BackedFile():
       }
 
 
+__NotificationHandlers = {}
+
+
+def DefaultNotificationHandler(msg, *, Config, Logger):
+  # We only have work to do if the job has completed
+  if msg and msg['state'] == 'COMPLETED':
+    Logger.debug("Transcoder Job with ID = {0} has completed".format(msg['jobId']))
+
+    # Get original object
+    source = S3.GetObject(
+      session=Config.Session,
+      bucket=Config.S3_OutputBucket,
+      key=msg['input']['key'],
+      return_data=False,
+      )
+
+    if source:
+      source_filename = source["Body"].headers.get("x-amz-meta-filename")
+      if not source_filename:
+        source_filename = msg['input']['key']
+      source_filename = os.path.basename(source_filename)
+
+      # Add Content-Disposition Header to the video & thumbnail file created
+      for output in msg['outputs']:
+        # Try to get the extension for the output file
+        output_extension = re.sub(r'^[^.]*\.', '', output['key'])
+        if not output_extension:
+          output_extension = 'dat'
+        output_extension = '.' + output_extension
+
+        # Now update the content-disposition header
+        S3.UpdateObject(
+          session=Config.Session,
+          bucket=Config.S3_OutputBucket,
+          key='{0}{1}'.format(msg['outputKeyPrefix'], output['key']),
+          content_disposition='inline; filename="{0}";'.format(re.sub(r'\.[^.]+$', output_extension, source_filename)),
+          )
+
+        Logger.info("Updated content-disposition header for {0}".format(output['key']))
+
+    else:
+      Logger.info("Could not get original source object. `Content-Disposition` header could not be added to output.")
+
+  elif msg['state'] == 'ERROR':
+    Logger.info("ERROR: Transcoder Job with ID = {0} failed.".format(msg['jobId']))
+
+  else:
+    return None
+
+  # Write the message to the relevant file in S3
+  ret = S3.PutJSON(
+    session=Config.Session,
+    bucket=Config.S3_OutputBucket,
+    key="{0}output.json".format(msg['outputKeyPrefix']),
+    content=msg
+    )
+
+  # Return
+  return ret
+
+
+def RegisterNotificationHandlerForJobId(*, JobId, Handler, Logger=None):
+  assert isinstance(JobId, str) and JobId
+  assert callable(Handler)
+  __NotificationHandlers[JobId] = Handler
+  if Logger:
+    Logger.info("Registered notification handler for job ID: {0}".format(JobId))
+
+
+def GetNotificationHandlerForJobId(*, JobId):
+  assert isinstance(JobId, str) and JobId
+  return __NotificationHandlers.get(JobId, DefaultNotificationHandler)
+
+
+def UnregisterNotificationHandlerForJobId(*, JobId, Logger=None):
+  if isinstance(JobId, str) and JobId in __NotificationHandlers:
+    del __NotificationHandlers[JobId]
+    if Logger:
+      Logger.info("Unregistered notification handler for job ID: {0}".format(JobId))
+
+
 def ProcessMessage(*, Message, Config, Logger):
   """Process a message
 
@@ -252,20 +333,11 @@ def ProcessMessage(*, Message, Config, Logger):
     msg = json.loads(m['Message'])
     if not msg:
       return None
-    # We only have work to do if the job has completed
-    if msg and msg['state'] == 'COMPLETED':
-      Logger.debug("Transcoder Job with ID = {0} has completed".format(msg['jobId']))
-    elif msg['state'] == 'ERROR':
-      Logger.info("ERROR: Transcoder Job with ID = {0} failed.".format(msg['jobId']))
-    else:
-      return None
-    # Write the message to the relevant file in S3
-    return S3.PutJSON(
-      session=Config.Session,
-      bucket=Config.S3_OutputBucket,
-      key="{0}output.json".format(msg['outputKeyPrefix']),
-      content=msg
-      )
+
+    jobid = msg.get('jobId', '')
+    Handler = GetNotificationHandlerForJobId(JobId=jobid)
+    return Handler(msg, Config=Config, Logger=Logger)
+
   elif m.get('Type', '') != 'Job' or 'Job' not in m or not isinstance(m.get('Params'), dict) or m.get('NumRetries', 0) >= NUM_MAX_RETRIES:
     # There are a few limitations for jobs specifications
     # 1. The format is a dict
