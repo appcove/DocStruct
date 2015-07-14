@@ -86,15 +86,22 @@ class BinariesClass():
   @property
   def DocumentConverter(self):
     if not self._DocumentConverter:
-      converter_path = os.path.join(os.path.dirname(__file__), '../../DocumentConverter.py')
+      
+      # First try to use the bundled version if we are running in DocStruct
+      converter_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../Bin/docstruct-openoffice-document-converter'))
+      
+      # Otherwise, look up a system version from acn-linux
       if not os.path.exists(converter_path):
-        print()
-        print("Seems like DocumentConverter.py which comes bundled with the DocStruct module is missing.")
-        print("Please upgrade to the latest version of DocStruct before starting the jobs processor.")
-        print()
-        sys.exit(1)
-      else:
-        type(self)._DocumentConverter = converter_path
+        try:
+          converter_path = subprocess.check_output('which docstruct-openoffice-document-converter', stderr=subprocess.STDOUT, shell=True).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+          print("Seems like docstruct-openoffice-document-converter which comes bundled with the DocStruct module is missing.")
+          print("Please upgrade to the latest version of DocStruct before starting the jobs processor.")
+          print()
+          sys.exit(1)
+      
+      type(self)._DocumentConverter = converter_path
+
       # Try to see if we can use the document converter to convert documents
       try:
         subprocess.check_output((self.Python2, self._DocumentConverter, '/tmp/invalid.doc', '/tmp/invalid.pdf'), stderr=subprocess.STDOUT)
