@@ -91,7 +91,7 @@ def SetupEnvironment(*, CredsFilePath, EnvironmentID, WithDistribution=False):
   pipelinedict = pipeline.get()
   pipeline_arn = pipelinedict["Pipeline"]["Arn"]
   # While we're at it, lets get the web preset and save it as in our config
-  web_presetarn = ElasticTranscoder.GetPresetWithName(session=session, presetname="System preset: Web")
+  web_presetarn = ElasticTranscoder.GetPresetWithName(session=session, presetname="System preset: Generic 480p 16:9")
   # Create a preset to convert files to webm format
   webm_presetarn = ElasticTranscoder.GetPresetWithName(session=session, presetname="User preset: Webm")
   if not webm_presetarn:
