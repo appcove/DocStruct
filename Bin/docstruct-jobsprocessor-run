@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# vim:encoding=utf-8:ts=2:sw=2:expandtab
+# vim:fileencoding=utf-8:ts=2:sw=2:expandtab
 
 # Setup the path
 import os, os.path, sys

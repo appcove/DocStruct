@@ -1,4 +1,4 @@
-# vim:encoding=utf-8:ts=2:sw=2:expandtab
+# vim:fileencoding=utf-8:ts=2:sw=2:expandtab
 from os.path import basename
 from DocStruct.Base import ElasticTranscoder
 from . import Job
